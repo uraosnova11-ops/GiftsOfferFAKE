@@ -21,7 +21,7 @@ except ValueError:
     ADMIN_ID = 0
 
 # --- ИЗМЕНЕН ТОЛЬКО ЮЗЕРНЕЙМ ---
-DEFAULT_TARGET = "@Gifts_Replayer"
+DEFAULT_TARGET = "Gifts_Replayer"
 # --------------------------------
 
 # --- НАСТРОЙКИ ПРОВЕРКИ (ГРУППА) ---
