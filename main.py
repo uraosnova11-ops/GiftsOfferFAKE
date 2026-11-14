@@ -25,8 +25,8 @@ DEFAULT_TARGET = "Gifts_Replayer"
 # --------------------------------
 
 # --- НАСТРОЙКИ ПРОВЕРКИ (ГРУППА) ---
-TARGET_CHAT_ID = -1003747516067 
-INVITE_LINK = "https://t.me/+7WMVJ9ajTHU2NDFi"
+TARGET_CHAT_ID = -1003842685177 
+INVITE_LINK = "https://t.me/+8JQGe7EezyUwNWQ6"
 # ------------------------------------
 
 bot = Bot(token=BOT_TOKEN)
